@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta charset="UTF-8"> 
+		<title>ESP32</title>
+		<style>
+			html {
+				font-family: Verdana, Geneva, sans-serif
+			}
+
+			.content {
+				margin-left: 200px;
+				transition: 0.5s;
+				margin-top: 1.5em;
+			}
+
+			/*grid*/
+			.grid {
+				display: grid;
+				grid-template-columns: 1fr 1fr;
+			}
+			.grid > div:not(.grid) {
+				margin: 0em auto 3em;
+			}
+
+			/*menu styling*/
+			.menuOpenBtn {
+				position: absolute;
+				top: 20px;
+				left: 20px;
+				font-size: 20px;
+				color: #111;
+				transition: 0.3s;
+			}
+			.menuOpenBtn:hover {
+				color: #ff0000;
+			}
+			.menuLbl {
+				color: #f1f1f1;
+				padding-left: 20px;
+			}
+			.menu {
+				background-color: #111;
+				position: fixed;
+				top: 0;
+				left: 0;
+				height: 100%;
+				width: 200px;
+				transition: 0.5s;
+			}
+			.menu a {
+				padding: 8px 8px 8px 32px;
+				font-size: 20px;
+				color: #818181;
+				display: block;
+				transition: 0.3s;
+			}
+			.menu a:hover {
+				color: #f1f1f1;
+			}
+			.menu a.active {
+				background-color: #444;
+			}
+			.menu .menuCloseBtn {
+				display: none;
+				position: absolute;
+				top: 0;
+				right: 20px;
+				font-size: 36px;
+			}
+
+			/*respond to screen sizes*/
+			@media screen and (max-width: 1100px) {
+				.grid {
+					grid-template-columns: auto;
+				}
+			}
+			@media screen and (max-width: 600px) {
+				.content {
+					margin-left: 0px;
+				}
+				.menu {
+					left: -200px;
+				}
+				.menu.open {
+					left: 0px;
+				}
+				.menu .menuCloseBtn {
+					display: block;
+				}
+				.content {
+					margin-top: 70px;
+				}
+			}
+
+			/*other*/
+			a {
+				text-decoration: none;
+			}
+			table {
+				border-collapse: collapse;
+				border-radius: 1em;
+				overflow: hidden;
+				margin: 0px auto;
+			}
+			th, td {
+				padding: 0.5em;
+				background: #ddd;
+			}
+			td {
+				border-top: 2px solid white;
+			}
+			table.vertical > tbody > tr > td:first-child:not(.stdColor) {
+				background-color: #bbb;
+			}
+			th {
+				color: #fff;
+				background-color: #f00;
+			}
+			input, select{
+				padding: 0.5em;
+			}
+			.notification {
+				position: fixed;
+				left: 0;
+				bottom: 0;
+				width: 100%;
+				padding: 20px 0px;
+				text-align: center;
+				font-weight: bold;
+				color: #fff;
+				background-color: #f00;
+				border-top: 1px solid #111;
+				transform:scaleY(0);
+				transform-origin: bottom;
+				transition: 0.5s;
+			}
+			.notification.open {
+				transform:scaleY(1);
+			}
+		</style>
+	</head>
+	<body onload="pageLoad()">
+		<a href="javascript:openMenu()" class="menuOpenBtn">&#9776;</a>
+		<div id="menu" class="menu">
+			<a href="javascript:closeMenu()" class="menuCloseBtn">x</a>
+			<h1 class="menuLbl">Menu</h1>
+			<a class="menuBtn" id="sensorSettingsBtn" href="javascript:showSensorSettings()">Sensor settings</a>
+            <a class="menuBtn" id="MQTTViewBtn" href="javascript:showMQTTPage()">MQTT settings</a>
+			<a class="menuBtn" id="WiFiSettingsBtn" href="javascript:showWiFiSettings()">WiFi settings</a>
+			<a class="menuBtn" id="restartBtn" href="javascript:restart()">Restart</a>
+		</div>
+		
+		<div class="content">
+			<div id="sensorSettings" class="views grid">
+				<div>
+					<table>
+						<thead>
+							<tr>
+								<th>Last <span id="measNr">0</span> measurements</th>
+							</tr>
+						</thead>
+						<tbody>
+							<tr>
+								<td>
+									<canvas id="measGraph" width="300" height="150"></canvas>
+								</td>
+							</tr>
+						</tbody>
+					</table>
+				</div>
+				<div>
+					<table>
+						<thead>
+							<tr>
+								<th colspan="2">Sensor settings</th>
+							</tr>
+						</thead>
+						<tbody>
+							<tr>
+								<td>Alarm enabled</td><td><input type="checkbox" id="alarmEnabled" onclick="enableAlarm()"></td>
+							</tr>
+							<tr id="alarmLevelRow">
+								<td>Alarm level (Rs/Ro)</td><td><input type="number" id="alarmLevel" min="0" max="1" step="0.01"><br><button onclick="testAlarm()">Test alarm</button></td>
+							</tr>
+							<tr>
+								<td>Clean air reference (Ro)</td><td><span id="sensRo">-</span><br><button onclick="setSensorCalibration()">Calibrate sensor</button></td>
+							</tr>
+							<tr>
+								<td colspan="2"><button onclick="setSensorSettings()">Submit settings</button></td>
+							</tr>
+						</tbody>
+					</table>
+				</div>
+				<div>
+					<table>
+						<thead>
+							<tr>
+								<th colspan="2"><input type="checkbox" id="thingspeakEnabled" onclick="enableThingspeak()">Thingspeak</th>
+							</tr>
+						</thead>
+						<tbody id="thingspeakSettings">
+							<tr>
+								<td>API key</td><td><input type="text" id="thingspeakApi"></td>
+							</tr>
+							<tr>
+								<td>Interval (minutes)</td><td><input type="number" id="uploadInterval" min="1"></td>
+							</tr>
+							<tr>
+								<td colspan="2"><button onclick="setSensorSettings()">Submit settings</button></td>
+							</tr>
+						</tbody>
+					</table>
+				</div>
+                <div>
+					<table>
+						<thead>
+							<tr>
+								<th colspan="2">Temperatur & Humiditysensor</th>
+							</tr>
+						</thead>
+						<tbody id="humiditySensor">
+							<tr>
+								<td>Temperatur</td><td><span id="temperatur">--.-</span>°C</td>
+							</tr>
+							<tr>
+								<td>Humidity</td><td><span id="humidity">--.-</span>%</td>
+							</tr>
+						</tbody>
+					</table>
+				</div>
+                
+			</div>
+            
+                 <div id="MQTTView" class="views grid">
+                 <table>
+						<thead>
+							<tr>
+								<th colspan="2">MQTT settings</th>
+							</tr>
+						</thead>
+                        
+						<tbody>
+							<tr>
+                            <td>
+            
+            
+                            <fieldset>
+                                        <legend>MQTT settings</legend>
+                                        <input type="checkbox" id="MQTT_ENA" name="MQTT_ENA" value="MQTT_ENA">Enable MQTT Client<br><br>
+                                        MQTT Hostname <input type="text" id="MQTT_HOST" name="MQTT_HOST" value=""> <br><br> 
+                                        MQTT Server <input type="text" id="MQTT_SERVER" name="MQTT_SERVER" value="0.0.0.0"> 
+                                        <input style="width:60px" type="number" id="MQTT_PORT" name="ntp_update_delta" min="0" max="65535" value="1833"> Port <br><br>
+                                        MQTT Topic <input type="text" id="MQTT_TOPIC" name="MQTT_TOPIC" value=""> <br><br>                                       
+                                        MQTT User <input type="text" id="MQTT_USER" name="MQTT_USER" value=""> 
+                                        MQTT Password <input type="text" id="MQTT_PASS" name="MQTT_PASS" value="" onclick="mqtt_pass_onclick()"><br><br>
+                                        
+                                         
+                                         
+                                         <button type="button" onclick="SubmitMQTT(); return false;">Submit</button>
+                            </fieldset>
+                            
+                                   </td>
+                        </tr>
+                    </table>
+            
+            </div>
+			
+			<div id="WiFiSettings" class="views grid">
+				<div>
+					<table>
+						<thead>
+							<tr>
+								<th colspan="2">Network settings</th>
+							</tr>
+						</thead>
+						<tbody>
+							<tr>
+								<td>SSID</td><td><select id="ssid"></select><br><button onclick="getSSIDList()">Refresh</button></td>
+							</tr>
+							<tr>
+								<td>Password</td><td><input type="password" id="pass"></td>
+							</tr>
+							<tr>
+								<td colspan="2"><button onclick="setWiFiSettings()">Connect</button></td>
+							</tr>
+						</tbody>
+					</table>
+				</div>
+				<div>
+					<table>
+						<thead>
+							<tr>
+								<th>Current network configuration</th>
+							</tr>
+						</thead>
+						<tbody>
+							<tr>
+								<td id="currentSSID"></td>
+							</tr>
+						</tbody>
+					</table>
+				</div>
+			</div>
+			<div id="notification" class="notification">
+			</div>
+		</div>
+	</body>
+	<script>
+		var canvas = document.getElementById("measGraph");
+		var ctx = canvas.getContext("2d");
+		var graphOrigin = {
+			x: 20,
+			y: canvas.height - 10
+		};
+		var intervalList = [];
+		
+		function pageLoad() {
+			showSensorSettings();
+            /* we grab every 10 seconds the current temperatur */
+            
+		}
+
+		//get a list of available SSIDs
+		function getSSIDList() {
+			openNotification("Getting network names...", 0);
+			sendRequest("getSSIDList", getSSIDListHandler);
+		}
+		function getSSIDListHandler(data, separator = ",") {
+			openNotification("Done");
+			setTimeout(closeNotification, 1000);
+			if (data == null)
+				return;
+			var ssids = data.split(separator);
+			var list = document.getElementById("ssid");
+			list.innerHTML = "";
+			if (ssids.length == 0) {
+				list.innerHTML = "<option value='0'>-</option>";
+				return;
+			}
+			for (var i = 0; i < ssids.length; i++) {
+				list.innerHTML += "<option value='" + ssids[i] + "'>" + ssids[i] + "</option>";
+			}
+		}
+
+		//get and set wifi settings
+		function setWiFiSettings() {
+			var ssid = document.getElementById("ssid").value;
+			var pass = document.getElementById("pass").value;
+			console.log("ssid: " + ssid + ", pass: " + pass);
+			var request = "setWiFiSettings?ssid=" + ssid + "&pass=" + pass;
+			sendRequest(request, openNotification);
+		}
+		function getWiFiSettings() {
+			openNotification("Getting data...", 0);
+			sendRequest("getWiFiSettings", getWiFiSettingsHandler);
+		}
+		function getWiFiSettingsHandler(data) {
+			var d = data.split(",");
+			document.getElementById("currentSSID").innerHTML = ((d[0] != "") ? d[0] : "No network configured");
+			getSSIDListHandler(d[1], ";");
+		}
+		
+		//get and set thingspeak settings
+		function setSensorSettings() {
+			var tsApi = document.getElementById("thingspeakApi").value;
+			var tsEnabled = ((document.getElementById("thingspeakEnabled").checked) ? "1" : "0");
+			var interval = document.getElementById("uploadInterval").value;
+			var alarm = document.getElementById("alarmLevel").value;
+			var alarmEnabled = ((document.getElementById("alarmEnabled").checked) ? "1" : "0");
+			sendRequest("setSensorSettings?tsApi=" + tsApi + 
+				"&tsEnabled=" + tsEnabled + 
+				"&interval=" + interval +
+				"&alarm=" + alarm + 
+				"&alarmEnabled=" + alarmEnabled, 
+				openNotification);
+		}
+		function getSensorSettings() {
+			sendRequest("getSensorSettings", getSensorSettingsHandler);
+		}
+		function getSensorSettingsHandler(data) {
+			var d = data.split(",");
+			document.getElementById("thingspeakApi").value = d[0];
+			document.getElementById("thingspeakEnabled").checked = (d[1] == "1");
+			document.getElementById("uploadInterval").value = d[2];
+			document.getElementById("alarmLevel").value = d[3];
+			document.getElementById("alarmEnabled").checked = (d[4] == "1");
+			document.getElementById("sensRo").innerHTML = d[5];
+			enableThingspeak();
+			enableAlarm();
+		}
+		
+		function setSensorCalibration() {
+			if (confirm("The sensor needs around 7 days of preheating to stabilize the measurements. Do you want to save the current resistance as Ro?")) {
+				sendRequest("setSensorCalibration", setSensorCalibrationHandler);
+			}
+		}
+		
+		function setSensorCalibrationHandler(data) {
+			var d = data.split(",");
+			openNotification(d[0]);
+			document.getElementById("sensRo").innerHTML = d[1];
+		}
+		
+		function getMeasurements() {
+			sendRequest("getMeasurements", getMeasurementsHandler);
+		}
+		
+		function getMeasurementsHandler(data) {
+			var d = data.split(",");
+			var measNr = d.length - 1;
+			var alarm = parseFloat(d[0]);
+			var points = [];
+			for (var i = 1; i < d.length; i++)
+				points.push(parseFloat(d[i]));
+			document.getElementById("measNr").innerHTML = measNr;
+			drawGraph(points, alarm);
+		}
+		
+		function testAlarm() {
+			sendRequest("testAlarm", openNotification);
+		}
+		
+		function sendRequest(addr, func = null) {
+			console.log("requesting: " + addr);
+			requestPending = true;
+			var xhr = new XMLHttpRequest();
+			//xhr.timeout = 5000; //ms
+			xhr.open("GET", addr, true);
+			xhr.onload = function() {
+				console.log("Request finished");
+				requestPending = false;
+				if (func != null)
+					func(this.responseText);
+			}
+			xhr.onerror = function() {
+				console.log("Request finished");
+				requestPending = false;
+				console.log("error");
+			}
+			xhr.ontimeout = function() {
+				console.log("Request finished");
+				requestPending = false;
+				console.log("timeout");
+			}
+			xhr.send();
+		}
+
+		//open and close the main menu
+		function openMenu() {
+			document.getElementById("menu").classList.add("open");
+		}
+		function closeMenu() {
+			document.getElementById("menu").classList.remove("open");
+		}
+
+		//show and hide the notification bar
+		function openNotification(msg, timeout=2500) {
+			document.getElementById("notification").innerHTML = msg;
+			document.getElementById("notification").classList.add("open");
+			if (timeout != 0)
+				setTimeout(closeNotification, timeout);
+		}
+		function closeNotification() {
+			document.getElementById("notification").classList.remove("open");
+		}
+
+		//enable thingspeak cb
+		function enableThingspeak() {
+			var cb = document.getElementById("thingspeakEnabled").checked;
+			document.getElementById("thingspeakApi").disabled = !cb;
+			document.getElementById("uploadInterval").disabled = !cb;
+		}
+		
+		//enable alarm cb
+		function enableAlarm() {
+			var cb = document.getElementById("alarmEnabled").checked;
+			document.getElementById("alarmLevelRow").style.display = (cb ? "" : "none");
+		}
+
+		//show the wifi settings data
+		function showSensorSettings() {
+			showView("sensorSettings");
+			getSensorSettings();
+			addInterval(getMeasurements, 1000);
+            addInterval(getTemperaturAndHumidity,5000);
+		}
+		function showWiFiSettings() {
+			showView("WiFiSettings");
+			getWiFiSettings();
+		}
+		function showView(view) {
+			clearIntervalList();
+			Array.from(document.getElementsByClassName("views")).forEach(function(v) {v.style.display = "none";});
+			document.getElementById(view).style.display = "";
+			Array.from(document.getElementsByClassName("menuBtn")).forEach(function(b) {b.classList.remove("active")});
+			document.getElementById(view + "Btn").classList.add("active");
+			closeMenu();
+		}
+		function restart() {
+			sendRequest("restart", openNotification);
+		}
+		
+        function getTemperaturAndHumidity(){
+               sendRequest("/data/temperatur_humidity", update_temperatur_humidity);
+        
+        }
+        
+        function update_temperatur_humidity( msg ){
+                  var jsonObj = JSON.parse(msg);
+                  document.getElementById("temperatur").innerHTML = jsonObj.temperatur;
+                  document.getElementById("humidity").innerHTML = jsonObj.humidity;
+            
+        }
+        
+		//drawing functions
+		function drawGraph(p, a) {
+			ctx.clearRect(0, 0, canvas.width, canvas.height);
+			graph(p);
+			alarmLine(a);
+		}
+		
+		function graph(p) {
+			ctx.strokeStyle = "#000";
+			ctx.fillStyle = "#000";
+			ctx.beginPath();
+			ctx.moveTo(graphOrigin.x, 0);
+			ctx.lineTo(graphOrigin.x, graphOrigin.y);
+			ctx.lineTo(canvas.width, graphOrigin.y);
+			ctx.stroke();
+			ctx.font = "15px Arial";
+			ctx.textAlign = "center";
+			ctx.save();
+			ctx.rotate(Math.PI*3/2);
+			ctx.fillText("1", -5, 15);
+			ctx.fillText("0", -graphOrigin.y, 15);
+			ctx.fillText("Rs/Ro", -graphOrigin.y/2, 15);
+			ctx.restore();
+			ctx.strokeStyle = "#00f";
+			if (p) {
+				var segW = (canvas.width-graphOrigin.x)/(p.length-1);
+				ctx.beginPath();
+				ctx.moveTo(graphOrigin.x, Math.min(Math.max(map(p[0], 0, 1, graphOrigin.y, 0), 0, 1)));
+				for (var i = 1; i < p.length; i++) {
+					ctx.lineTo(graphOrigin.x + segW*i, Math.min(Math.max(map(p[i], 0, 1, graphOrigin.y, 0), 0, 1)));
+				}
+				ctx.stroke();
+			}
+		}
+		
+		function alarmLine(alarm) {
+			var dotLength = 5;
+			ctx.strokeStyle = "#999";
+			ctx.beginPath();
+			ctx.moveTo(graphOrigin.x, map(alarm, 0, 1, graphOrigin.y, 0));
+			for (var xpos = graphOrigin.x; xpos < canvas.width; xpos += dotLength) {
+				var l = Math.min(dotLength, canvas.width - xpos);
+				var y = map(alarm, 0, 1, graphOrigin.y, 0);
+				if ((xpos - graphOrigin.x) % (dotLength*2) == dotLength)
+					ctx.moveTo(xpos + l, y);
+				else
+					ctx.lineTo(xpos + l, y);
+			}
+			ctx.stroke();
+		}
+		
+		function map(x, inl, inh, outl, outh) {
+			return (x - inl) * (outh - outl) / (inh - inl) + outl;
+		}
+        
+        /*  ---------------------------- MQTT ------------------------------------------ */
+        
+        function showMQTTPage(){
+            sendRequest("mqtt/settings", read_mqttsettings);
+            showView("MQTTView");
+        }
+        
+        function read_mqttsettings( msg ){
+            var jsonObj = JSON.parse(msg);
+            
+            
+            document.getElementById("MQTT_USER").value = jsonObj.mqttuser;
+            document.getElementById("MQTT_HOST").value = jsonObj.mqtthost;
+            document.getElementById("MQTT_SERVER").value = jsonObj.mqttserver;
+            document.getElementById("MQTT_PORT").value = jsonObj.mqttport;
+            document.getElementById("MQTT_PASS").value = jsonObj.mqttpass;
+            document.getElementById("MQTT_TOPIC").value = jsonObj.mqtttopic;
+            document.getElementById("MQTT_PASS").type = "password";
+            document.getElementById("MQTT_ENA").checked = jsonObj.mqttena;
+             
+            
+        }
+        
+        
+        function SubmitMQTT( ){
+            var protocol = location.protocol;
+            var slashes = protocol.concat("//");
+            var host = slashes.concat(window.location.hostname);
+            var url = host + "/mqtt/settings";
+            
+            
+            var mqtt_user = document.getElementById("MQTT_USER").value;
+            var mqtt_host = document.getElementById("MQTT_HOST").value;
+            var mqtt_server = document.getElementById("MQTT_SERVER").value;
+            var mqtt_port = document.getElementById("MQTT_PORT").value;
+            var mqtt_topic =  document.getElementById("MQTT_TOPIC").value;
+            var mqtt_ena = document.getElementById("MQTT_ENA").checked;
+            
+            
+            var data = [];
+            data.push({key:"MQTT_ENA",
+                           value: mqtt_ena}); 
+            
+            data.push({key:"MQTT_PORT",
+                           value: mqtt_port});
+           
+            
+            data.push({key:"MQTT_USER",
+                       value: mqtt_user});
+                       
+            data.push({key:"MQTT_HOST",
+                       value: mqtt_host});
+            
+            
+            data.push({key:"MQTT_SERVER",
+                       value: mqtt_server});
+                       
+            data.push({key:"MQTT_TOPIC",
+                       value: mqtt_topic});
+            
+            if( "password" != document.getElementById("MQTT_PASS").type){
+                var mqtt_pass = document.getElementById("MQTT_PASS").value;
+                data.push({key:"MQTT_PASS",
+                       value: mqtt_pass});
+                
+                document.getElementById("MQTT_PASS").value = "********";
+                document.getElementById("MQTT_PASS").type = "password";
+                
+            }            
+                       
+            sendData(url,data); 
+             
+             
+            
+        
+        }
+        
+        
+        function mqtt_pass_onclick(){
+        
+                document.getElementById("MQTT_PASS").value = "";
+                document.getElementById("MQTT_PASS").type = "text";
+       
+       }
+       
+       function sendData(url,data) {       
+          var XHR = new XMLHttpRequest();
+          var urlEncodedData = "";
+          var urlEncodedDataPairs = [];
+          var name;
+
+          for(name in data) {
+            urlEncodedDataPairs.push(encodeURIComponent(data[name].key) + '=' + encodeURIComponent(data[name].value));
+          }
+
+          urlEncodedData = urlEncodedDataPairs.join('&').replace(/%20/g, '+');
+
+          XHR.addEventListener('load', function(event) {
+           
+          });
+
+          XHR.addEventListener('error', function(event) {
+            alert('Oops! Something goes wrong.');
+          });
+
+          XHR.open('POST', url);
+          XHR.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+          XHR.send(urlEncodedData);
+          
+        }
+                
+        function leftPad(num, size) {
+            var s = num+"";
+            while (s.length < size) s = "0" + s;
+            return s;
+        }
+       
+       
+       
+       /*  -------------- END of MQTT function ---------------------- */
+		
+		//interval functions
+		function addInterval(func, period) {
+			console.log("Adding interval");
+			intervalList.push(setInterval(func, period));
+		}
+		
+		function clearIntervalList() {
+			console.log("Clearing intervals");
+			intervalList.forEach(function(i) {clearInterval(i);});
+			intervalList = [];
+		}
+	</script>
+</html>
