@@ -312,6 +312,7 @@ void MQTT_Task( void* prarm ){
    String JsonString = "";
    uint32_t ulNotificationValue;
    int32_t last_message = millis();
+   uint32_t last_recontry=0;
    mqttsettings_t Settings = eepread_mqttsettings();
                          
    Serial.println("MQTT Thread Start");
@@ -335,14 +336,17 @@ void MQTT_Task( void* prarm ){
    if(!client.connected()) {             
         /* sainity check */
         if( (Settings.mqttserverport!=0) && (Settings.mqttservename[0]!=0) && ( Settings.enable != false ) ){
-      
-              Serial.print("Connecting to MQTT...");  // connect to MQTT
-              client.setServer(Settings.mqttservename, Settings.mqttserverport); // Init MQTT     
-              if (client.connect(Settings.mqtthostname, Settings.mqttusername, Settings.mqttpassword)) {
-                Serial.println("connected");          // successfull connected  
-                client.subscribe(Settings.mqtttopic);             // subscibe MQTT Topic
-              } else {
-                Serial.print("failed with state ");   // MQTT not connected       
+
+              if( (last_recontry+10000) < millis() ){
+                last_recontry = millis();
+                Serial.print("Connecting to MQTT...");  // connect to MQTT
+                client.setServer(Settings.mqttservename, Settings.mqttserverport); // Init MQTT     
+                if (client.connect(Settings.mqtthostname, Settings.mqttusername, Settings.mqttpassword)) {
+                  Serial.println("connected");          // successfull connected  
+                  client.subscribe(Settings.mqtttopic);             // subscibe MQTT Topic
+                } else {
+                  Serial.println("failed");   // MQTT not connected       
+                }
               }
         }
    } else{

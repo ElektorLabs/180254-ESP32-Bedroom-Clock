@@ -19,7 +19,7 @@ NTP.onNTPSyncEvent ([&](NTPSyncEvent_t event) {
        SyncEvent(event);
 });
 
-NTP.begin ((char*)Config.ntpServerName, DEFAULT_NTP_TIMEZONE , true, 0);
+NTP.begin ((char*)Config.ntpServerName, DEFAULT_NTP_TIMEZONE , false, 0);
 NTP.setNTPTimeout(2500);
 NTP.setInterval (50);
 
@@ -43,8 +43,9 @@ void NTP_Client::SyncEvent(NTPSyncEvent_t event){
 
           case timeSyncd:{
           uint32_t ts = NTP.getLastNTPSync ();
+          /* we need to grab the offset if ther is any and remove it */
           Serial.print(F("Sync:"));
-          Serial.println (NTP.getLastNTPSync ());
+          Serial.println (ts);
           if(ts>100){
             if(timeptr!=NULL){
               timeptr->SetUTC(ts,NTP_CLOCK);
