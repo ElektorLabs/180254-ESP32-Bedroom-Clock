@@ -23,12 +23,11 @@ extern TaskHandle_t MQTTTaskHandle;
 *    Remarks       : none
 **************************************************************************************************/ 
 void response_settings(){
-StaticJsonBuffer<350> jsonBuffer;
 char strbuffer[129];
 String response="";  
   
-  JsonObject& root = jsonBuffer.createObject();
-
+  DynamicJsonDocument root(1024);
+  
   
   memset(strbuffer,0,129);
   datum_t d = timec.GetLocalTimeDate();
@@ -52,7 +51,7 @@ String response="";
   root["dlsmanena"]=timec.GetManualDLSEna();
   uint32_t idx = timec.GetDLS_Offset();
   root["dlsmanidx"]=idx;
-  root.printTo(response);
+  serializeJson(root, response);
   sendData(response);
 }
 
@@ -342,14 +341,14 @@ void led_update( ){ /* sets the new PWM Value */
 **************************************************************************************************/  
 void led_status( ){ 
   const size_t capacity = JSON_ARRAY_SIZE(4) + JSON_OBJECT_SIZE(1);
-  DynamicJsonBuffer jsonBuffer(capacity);
+  DynamicJsonDocument root(capacity);
   String response ="";
-  JsonObject& root = jsonBuffer.createObject();
+
   
-  JsonArray& led_value = root.createNestedArray("led_value");
+  JsonArray led_value = root.createNestedArray("led_value");
   led_value.add(GetSevenSegmentBrightness());  
   
-  root.printTo(response);
+  serializeJson(root, response);
   sendData(response);
 
 
@@ -357,12 +356,15 @@ void led_status( ){
 
 void mqttsettings_update( ){
  
-  mqttsettings_t Data = eepread_mqttsettings();
+  mqttsettings_t Data;
+  //loadMQTTSettings(&Data); 
+  Data = eepread_mqttsettings();
   
   if( ! server->hasArg("MQTT_USER") || server->arg("MQTT_USER") == NULL ) { 
     /* we are missong something here */
   } else { 
     String value = server->arg("MQTT_USER");
+    bzero(Data.mqttusername,sizeof(Data.mqttusername));
     strncpy(Data.mqttusername, value.c_str(),128);
   }
 
@@ -370,6 +372,7 @@ void mqttsettings_update( ){
     /* we are missong something here */
   } else { 
     String value = server->arg("MQTT_PASS");
+    bzero(Data.mqttpassword,sizeof(Data.mqttpassword));
     strncpy(Data.mqttpassword, value.c_str(),128);
   }
 
@@ -377,13 +380,15 @@ void mqttsettings_update( ){
     /* we are missong something here */
   } else { 
     String value = server->arg("MQTT_SERVER");
-    strncpy(Data.mqttservename, value.c_str(),128);
+    bzero(Data.mqttservername,sizeof(Data.mqttservername));
+    strncpy(Data.mqttservername, value.c_str(),128);
   }
 
   if( ! server->hasArg("MQTT_HOST") || server->arg("MQTT_HOST") == NULL ) { 
     /* we are missong something here */
   } else { 
     String value = server->arg("MQTT_HOST");
+    bzero(Data.mqtthostname,sizeof(Data.mqtthostname));
     strncpy(Data.mqtthostname, value.c_str(),64);
   }
 
@@ -400,6 +405,7 @@ void mqttsettings_update( ){
     /* we are missong something here */
   } else { 
     String value = server->arg("MQTT_TOPIC");
+    bzero(Data.mqtttopic,sizeof(Data.mqtttopic));
     strncpy(Data.mqtttopic, value.c_str(),500);
   }
 
@@ -413,44 +419,46 @@ void mqttsettings_update( ){
     Data.enable = value;
   }
   
+
+  if( ! server->hasArg("MQTT_TXINTERVALL") || server->arg("MQTT_TXINTERVALL") == NULL ) { 
+    /* we are missong something here */
+  } else { 
+    uint32_t value = server->arg("MQTT_TXINTERVALL").toInt();
+    Data.mqtttxintervall = value;
+  }
   /* write data to the eeprom */
-  eepwrite_mqttsettings(Data);
-  
-  xTaskNotify( MQTTTaskHandle, 0x01, eSetBits );
+  //saveMQTTSettings(&Data);
+  eepwrite_mqttsettings(Data);   
+  if(MQTTTaskHandle != NULL ){
+    xTaskNotify( MQTTTaskHandle, 0x01, eSetBits );
+  }
   server->send(200); 
 
 }
 
 
-/*
-  char mqttservename[129];
-  uint16_t mqttserverport;
-  char mqttusername[129];
-  char mqttpassword[129];
-  char mqtttopic[501];
-  char mqtthostname[65];
- */
 void read_mqttsetting(){
-   String response ="";
-  mqttsettings_t Data = eepread_mqttsettings();
-  const size_t capacity = JSON_OBJECT_SIZE(7);
-  DynamicJsonBuffer jsonBuffer(2000);
+  String response =""; 
+  mqttsettings_t Data;
+  Data = eepread_mqttsettings();
+  //loadMQTTSettings(&Data);  
+  DynamicJsonDocument  root(2000); 
   
-  JsonObject& root = jsonBuffer.createObject();
+ 
   root["mqttena"]= (bool)(Data.enable);
-  root["mqttserver"] = String(Data.mqttservename);
+  root["mqttserver"] = String(Data.mqttservername);
   root["mqtthost"] = String(Data.mqtthostname);
   root["mqttport"] = Data.mqttserverport;
   root["mqttuser"] = String(Data.mqttusername);
   root["mqtttopic"] = String(Data.mqtttopic);
+  root["mqtttxintervall"] = Data.mqtttxintervall;
   if(Data.mqttpassword[0]!=0){
     root["mqttpass"] = "********";
   } else {
     root["mqttpass"] ="";
   }
 
-  root.printTo(response);
+  serializeJson(root,response);
   sendData(response);
 
 }
-

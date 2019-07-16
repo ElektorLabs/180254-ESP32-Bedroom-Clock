@@ -480,7 +480,7 @@ time_t Timecore::GetLocalTime( void )
 {
  bool northTZ = (dstEnd>dstStart)?1:0; // Northern or Southern hemisphere TZ?
  time_t now = GetUTC();  // Call the original time() function
- //Serial.printf("UTC Time: %i ->",now);
+// Serial.printf("UTC Time: %i ->",now);
   if(local_config.TimeZoneOverride==false){
     if(now>TimeZoneRam.Offset){
       now = now + TimeZoneRam.Offset;

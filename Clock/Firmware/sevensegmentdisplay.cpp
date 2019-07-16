@@ -31,7 +31,8 @@ bool UpsideDown;
 
 hw_timer_t * timer = NULL;
 portMUX_TYPE timerMux = portMUX_INITIALIZER_UNLOCKED;
-/*
+
+/* This is the mapping vor the gbig Badroomclock in Version 1.0
 volatile int DisplaySegmentPins[]= {12,13,26,32,33,14,27,25 };
 volatile int DisplayCommonPins[]= {23 ,18 , 05 ,10 };
 */
@@ -42,29 +43,56 @@ volatile int DisplayCommonPins[]= {23 ,19 , 18 ,05 };
 
 volatile SevenSegemntDisp_t DisplayElement[4] = { { .Segment={false,},.UpsideDown=false }, };
 volatile uint8_t current_segment=0;
+volatile BedroomclockHW_t SelectedHW=BEDROOMCLOCK_1_2;
 
-void SevenSegmentPinSetup( void );
+void SevenSegmentPinSetup( BedroomclockHW_t HW );
 void SevenSegmentSetElement(volatile SevenSegemntDisp_t* elementptr, char Element );
 void SevenSegmentSetDP(volatile SevenSegemntDisp_t* elementptr, bool DP_Ena);
 
-void SevenSegmentSetup(){
+void SevenSegmentSetup(BedroomclockHW_t HW ){
+  const int SegmentPins_HW_1_0[] = {12,13,26,32,33,14,27,25 };
+  const int CommonPins_HW_1_0[] = {23 ,18 , 05 ,10 };
+  const int SegmentPins_HW_1_2[] = {25,26,32,33,27,14,12,13 };
+  const int CommonPins_HW_1_2[] = {23, 19 , 18 ,05 };
+  const int SegmentPins_HW_1_0_MINI[] = {25,26,32,33,27,14,12,13 };
+  const int CommonPins_HW_1_0_MINI[] = { 19 ,23 , 18 ,05 };
+  SelectedHW = HW;
+  switch ( HW ){
+    case  BEDROOMCLOCK_1_0: {
+      memcpy((void*)(DisplaySegmentPins), SegmentPins_HW_1_0, sizeof(DisplaySegmentPins) );
+      memcpy((void*)(DisplayCommonPins),  CommonPins_HW_1_0 , sizeof(DisplayCommonPins) );
+    } break;
+    
+    case BEDROOMCLOCK_1_2: {
+      memcpy((void*)(DisplaySegmentPins), SegmentPins_HW_1_2, sizeof(DisplaySegmentPins) );
+      memcpy((void*)(DisplayCommonPins),  CommonPins_HW_1_2 , sizeof(DisplayCommonPins) );
+    } break;
+    
+    case BEDROOMCLOCK_MINI_1_0:{
+      memcpy((void*)(DisplaySegmentPins), SegmentPins_HW_1_0_MINI, sizeof(DisplaySegmentPins) );
+      memcpy((void*)(DisplayCommonPins),  CommonPins_HW_1_0_MINI , sizeof(DisplayCommonPins) );
+    } break;
+    
+    defautl:{
+      abort();
+    } break;
+    
+  }
+  
   displaysettings_t led_settings =  eepread_ledsettings();
-    /* Setup pins */
-   SevenSegmentPinSetup();
-   /* Last step is to setup the timer */
-   timer = timerBegin(0, 80, true);
-   timerAttachInterrupt(timer, &onTimer, true);
-   /* we fire the interrupt at 400Hz */
-   timerAlarmWrite(timer, 2500, true); 
-   timerAlarmEnable(timer);
-   /* read the last settings */
-   SevenSegmentBrightness( led_settings.ledlevel );
-   
+  /* Setup pins */
+  SevenSegmentPinSetup(HW);
+  /* Last step is to setup the timer */
+  timer = timerBegin(0, 80, true);
+  timerAttachInterrupt(timer, &onTimer, true);
+  /* we fire the interrupt at 400Hz */
+  timerAlarmWrite(timer, 2500, true); 
+  timerAlarmEnable(timer);
+  /* read the last settings */
+  SevenSegmentBrightness( led_settings.ledlevel );
 }
 
-
-
-void SevenSegmentPinSetup( ){
+void SevenSegmentPinSetup( BedroomclockHW_t HW ){
 
   for(uint8_t i=0;i<( sizeof(DisplayCommonPins ) / sizeof( DisplayCommonPins[0] ));i++){
     digitalWrite(DisplayCommonPins[i],DISPLAY_OFF);
@@ -77,8 +105,12 @@ void SevenSegmentPinSetup( ){
     pinMode(DisplaySegmentPins[i], OUTPUT);
   }
 
-  /* we need to rotate DIS1 */
-  DisplayElement[2].UpsideDown=true;
+  if(BEDROOMCLOCK_MINI_1_0 ==  HW ){
+    DisplayElement[2].UpsideDown=false;
+  } else {
+    /* we need to rotate DIS1 */
+    DisplayElement[2].UpsideDown=true;
+  }
   /* We use only one channel */
   ledcSetup(0, PWM_FREQ ,RWM_RES );
   ledcWrite(0, 0); 
@@ -106,6 +138,10 @@ uint16_t GetSevenSegmentBrightness( ){
 
  return value; 
 
+}
+
+BedroomclockHW_t GetSelectedHardware( void ){
+  return SelectedHW;
 }
 
 void SevenSegmentDP( uint8_t idx, bool dpon ){

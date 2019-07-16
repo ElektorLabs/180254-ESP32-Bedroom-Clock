@@ -20,7 +20,8 @@ void ws_task( void ){
 }
 
 void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length) {
-    StaticJsonBuffer<200> jsonBuffer;
+    DynamicJsonDocument root(1024);
+    
     switch(type) {
         case WStype_DISCONNECTED:
             Serial.printf("[%u] Disconnected!\n", num);
@@ -35,12 +36,14 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
                 printf("[%u] get Text: %s\n", num, payload);
                 if(length<128){
                   Serial.println("Parse json");
-                  JsonObject& root = jsonBuffer.parseObject(payload);
-                  if(true == root.containsKey("ch0") ){
-                     uint16_t ch0  = root["ch0"]; 
-                     /* Update led settings */
-                     SevenSegmentBrightness(ch0);
-                     
+                  DeserializationError error = deserializeJson(root, payload);
+                  if( false == error ){
+                    if(true == root.containsKey("ch0") ){
+                       uint16_t ch0  = root["ch0"]; 
+                       /* Update led settings */
+                       SevenSegmentBrightness(ch0);
+                       
+                    }
                   }
                 }
               
