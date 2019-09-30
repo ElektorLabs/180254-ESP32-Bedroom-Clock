@@ -1,5 +1,5 @@
-#  180254 ESP32 Bedroomclock and Temperatur and Humiditysensor
-Software for the ESP32 Bedroomclock 
+#  180254 ESP32 MQTT Sensor Hub / Bedroomclock and Temperatur and Humiditysensor
+# Software for the ESP32 Bedroomclock 
 
 This will display the Time and MQTT Messages with the current temperature 
 
@@ -15,17 +15,21 @@ for more information. You need to install the libaries from the prerequiest to b
 You need the following libraries:
 
  * Time by Michael Margolis ( Arduino )
- * Arduino JSON 5.x
+ * Arduino JSON 6.x
  * CRC32 by Christopher Baker 
  * PubSubClient
+ * Adafruit BME280 Library 1.0.7 by Adafruit
+ * Adafruit Unified Sensor 1.0.2 by Adafruit
+ * Adafruit TSL2561 by Adafruit
+ * Adafruit VEML6070 by Adafruit
  * WebSockets by Markus Sattler
- * NTP client libary from https://github.com/gmag11/NtpClient/tree/develop (use develop branch )
- 
-Aftwerwards you are ready to compile the code for the clock.
-
-Alos you need to the sensor to compile additionally: 
-
+ * NTP client libary from https://github.com/gmag11/NtpClient/
  * DHTesp
+ 
+Aftwerwards you are ready to compile the code. If oyu like to connect a DHT11/DHT22 use Pin 15
+
+Also you need to the sensor to compile additionally: 
+
  * ( optional U8glib )
 
 

@@ -11,6 +11,7 @@
  * Adafruit VEML6070 by Adafruit
  * WebSockets by Markus Sattler
  * NTP client libary from https://github.com/gmag11/NtpClient/
+ * DHTesp
  * 
  * Hardware used: ESP32-PICO-KIT
  * 
